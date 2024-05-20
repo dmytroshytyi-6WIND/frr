@@ -670,7 +670,7 @@ void isis_zebra_request_srv6_sid_endx(struct isis_adjacency *adj)
 	ctx.behavior = ZEBRA_SEG6_LOCAL_ACTION_END_X;
 	ctx.nh6 = nexthop;
 	ret = isis_zebra_request_srv6_sid(&ctx, &sid_value,
-					  area->srv6db.config.srv6_locator_name);
+					  area->srv6db.srv6_locator);
 	if (!ret) {
 		zlog_err("%s: not allocated new End.X SID for IS-IS area %s",
 			 __func__, area->area_tag);
@@ -694,7 +694,7 @@ static void request_srv6_sids(struct isis_area *area)
 	/* Request new SRv6 End SID */
 	ctx.behavior = ZEBRA_SEG6_LOCAL_ACTION_END;
 	ret = isis_zebra_request_srv6_sid(&ctx, &sid_value,
-					  area->srv6db.config.srv6_locator_name);
+					  area->srv6db.srv6_locator);
 	if (!ret) {
 		zlog_err("%s: not allocated new End SID for IS-IS area %s",
 			 __func__, area->area_tag);
@@ -1199,6 +1199,10 @@ static int isis_zebra_process_srv6_locator_chunk(ZAPI_CALLBACK_ARGS)
 	struct isis_adjacency *adj;
 	enum srv6_endpoint_behavior_codepoint behavior;
 	bool allocated = false;
+	static struct in6_addr tmp_sid_endx;
+	uint8_t offset = 0;
+	uint8_t func_len = 0;
+	uint32_t func_max;
 
 	if (!isis) {
 		srv6_locator_chunk_free(&chunk);
@@ -1246,7 +1250,9 @@ static int isis_zebra_process_srv6_locator_chunk(ZAPI_CALLBACK_ARGS)
 				   : SRV6_ENDPOINT_BEHAVIOR_END;
 
 		/* Allocate new SRv6 End SID */
-		sid = isis_srv6_sid_alloc(area, chunk, behavior, 0);
+		sid = isis_srv6_sid_alloc_legacy(area,
+						 (struct srv6_locator *)chunk,
+						 behavior, 0);
 		if (!sid)
 			return -1;
 
@@ -1259,7 +1265,26 @@ static int isis_zebra_process_srv6_locator_chunk(ZAPI_CALLBACK_ARGS)
 
 		/* Create SRv6 End.X SIDs from existing IS-IS Adjacencies */
 		for (ALL_LIST_ELEMENTS_RO(area->adjacency_list, node, adj)) {
-			/* Placeholder for srv6_endx_sid_add(adj); */
+			if (adj->ll_ipv6_count > 0) {
+				offset = chunk->block_bits_length +
+					 chunk->node_bits_length;
+				/* SID FUNCTION not specified. We need to choose a FUNCTION that
+				* is not already used. So let's iterate through all possible
+				* functions and get the first available one. */
+				func_max = (1 << func_len) - 1;
+				for (uint32_t func = 1; func < func_max;
+				     func++) {
+					encode_sid_func(&tmp_sid_endx, func,
+							offset,
+							chunk->function_bits_length);
+					if (sid_exist(area, &tmp_sid_endx))
+						continue;
+					break;
+				}
+				tmp_sid_endx = srv6_locator_request_sid_legacy(
+					area, (struct srv6_locator *)chunk, -1);
+				srv6_endx_sid_add(adj, &tmp_sid_endx);
+			}
 		}
 
 		/* Regenerate LSPs to advertise the new locator and the SID */
@@ -1486,18 +1511,25 @@ int isis_zebra_srv6_manager_get_locator(const char *name)
  */
 bool isis_zebra_request_srv6_sid(const struct srv6_sid_ctx *ctx,
 				 struct in6_addr *sid_value,
-				 const char *locator_name)
+				 struct srv6_locator *srv6_locator)
 {
 	int ret;
 
-	if (!ctx || !locator_name)
+	if (!ctx || !srv6_locator->name)
 		return false;
 
 	/*
-	 * Send the Get SRv6 SID request to the SRv6 Manager and check the
-	 * result
-	 */
-	ret = srv6_manager_get_sid(zclient, ctx, sid_value, locator_name, NULL);
+	* Send the Get SRv6 SID request to the SRv6 Manager and check the
+	* result
+	*/
+	if (srv6_locator->format == SRV6_FORMAT_TYPE_LEGACY) {
+		/* Send Locator request */
+		isis_zebra_srv6_manager_get_locator_chunk(srv6_locator->name);
+		return true;
+	}
+
+	ret = srv6_manager_get_sid(zclient, ctx, sid_value, srv6_locator->name,
+				   NULL);
 	if (ret < 0) {
 		zlog_warn("%s: error getting SRv6 SID!", __func__);
 		return false;

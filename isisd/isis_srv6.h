@@ -180,4 +180,16 @@ void isis_area_delete_backup_srv6_endx_sids(struct isis_area *area, int level);
 
 int isis_srv6_ifp_up_notify(struct interface *ifp);
 
+struct isis_srv6_sid *
+isis_srv6_sid_alloc_legacy(struct isis_area *area, struct srv6_locator *locator,
+			   enum srv6_endpoint_behavior_codepoint behavior,
+			   int sid_func);
+struct in6_addr srv6_locator_request_sid_legacy(struct isis_area *area,
+						struct srv6_locator *locator,
+						int sid_func);
+void encode_sid_func(struct in6_addr *sid, uint32_t func, uint8_t offset,
+		     uint8_t len);
+bool sid_exist(struct isis_area *area, const struct in6_addr *sid);
+
+
 #endif /* _FRR_ISIS_SRV6_H */

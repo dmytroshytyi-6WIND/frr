@@ -72,7 +72,7 @@ extern int isis_zebra_srv6_manager_get_locator(const char *name);
 extern void isis_zebra_request_srv6_sid_endx(struct isis_adjacency *adj);
 extern bool isis_zebra_request_srv6_sid(const struct srv6_sid_ctx *ctx,
 					struct in6_addr *sid_value,
-					const char *locator_name);
+					struct srv6_locator *srv6_locator);
 extern void isis_zebra_release_srv6_sid(const struct srv6_sid_ctx *ctx);
 
 #endif /* _ZEBRA_ISIS_ZEBRA_H */

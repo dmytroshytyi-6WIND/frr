@@ -228,8 +228,8 @@ void isis_srv6_interface_set(struct isis_area *area, const char *ifname)
  * @param offset
  * @param len
  */
-static void encode_sid_func(struct in6_addr *sid, uint32_t func, uint8_t offset,
-			    uint8_t len)
+void encode_sid_func(struct in6_addr *sid, uint32_t func, uint8_t offset,
+		     uint8_t len)
 {
 	for (uint8_t idx = 0; idx < len; idx++) {
 		uint8_t tidx = offset + idx;
@@ -239,7 +239,7 @@ static void encode_sid_func(struct in6_addr *sid, uint32_t func, uint8_t offset,
 	}
 }
 
-static bool sid_exist(struct isis_area *area, const struct in6_addr *sid)
+bool sid_exist(struct isis_area *area, const struct in6_addr *sid)
 {
 	struct listnode *node;
 	struct isis_srv6_sid *s;
@@ -255,7 +255,7 @@ static bool sid_exist(struct isis_area *area, const struct in6_addr *sid)
 }
 
 /**
- * Request a SID from the SRv6 locator.
+ * Request a SID from the SRv6 locator (legacy method).
  *
  * @param area		IS-IS area
  * @param locator	SRv6 locator
@@ -265,7 +265,7 @@ static bool sid_exist(struct isis_area *area, const struct in6_addr *sid)
  * @return	First available SID on success or in6addr_any if the SRv6
  * locator is full
  */
-static struct in6_addr srv6_locator_request_sid(struct isis_area *area,
+struct in6_addr srv6_locator_request_sid_legacy(struct isis_area *area,
 						struct srv6_locator *locator,
 						int sid_func)
 {
@@ -765,6 +765,44 @@ int isis_srv6_ifp_up_notify(struct interface *ifp)
 	}
 
 	return 0;
+}
+
+/**
+ * Allocate an SRv6 SID from an SRv6 locator (legacy mode).
+ *
+ * @param area		IS-IS area
+ * @param locator	SRv6 locator
+ * @param behavior	SRv6 Endpoint Behavior bound to the SID
+ *
+ * @result the allocated SID on success, NULL otherwise
+ */
+struct isis_srv6_sid *
+isis_srv6_sid_alloc_legacy(struct isis_area *area, struct srv6_locator *locator,
+			   enum srv6_endpoint_behavior_codepoint behavior,
+			   int sid_func)
+{
+	struct isis_srv6_sid *sid = NULL;
+
+	if (!area || !locator)
+		return NULL;
+
+	sid = XCALLOC(MTYPE_ISIS_SRV6_SID, sizeof(struct isis_srv6_sid));
+
+	sid->sid = srv6_locator_request_sid_legacy(area, locator, sid_func);
+	if (IPV6_ADDR_SAME(&sid->sid, &in6addr_any)) {
+		isis_srv6_sid_free(sid);
+		return NULL;
+	}
+
+	sid->behavior = behavior;
+	sid->structure.loc_block_len = locator->block_bits_length;
+	sid->structure.loc_node_len = locator->node_bits_length;
+	sid->structure.func_len = locator->function_bits_length;
+	sid->structure.arg_len = locator->argument_bits_length;
+	sid->locator = locator;
+	sid->area = area;
+
+	return sid;
 }
 
 /**
