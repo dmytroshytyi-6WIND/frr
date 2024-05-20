@@ -321,21 +321,25 @@ void zebra_srv6_locator_format_set(struct srv6_locator *locator,
 	}
 
 	/* behavior and format command should be independent and used together in the case of usid config */
-	format_check = zebra_srv6_sid_format_lookup_by_params(
-		locator->block_bits_length, locator->node_bits_length,
-		locator->function_bits_length, locator->argument_bits_length,
-		CHECK_FLAG(locator->flags, SRV6_LOCATOR_USID)
-			? ZEBRA_SRV6_SID_FORMAT_TYPE_COMPRESSED_USID
-			: ZEBRA_SRV6_SID_FORMAT_TYPE_UNCOMPRESSED);
-	if (!format_check) {
-		zlog_warn("Unsupported SID format (block-len=%u node-len=%u func-len=%u usid=%s) specified for locator %s",
-			  locator->block_bits_length, locator->node_bits_length,
-			  locator->function_bits_length,
-			  (CHECK_FLAG(locator->flags, SRV6_LOCATOR_USID))
-				  ? "yes"
-				  : "no",
-			  locator->name);
-		return;
+	if (format->type != ZEBRA_SRV6_SID_FORMAT_TYPE_LEGACY) {
+		format_check = zebra_srv6_sid_format_lookup_by_params(
+			locator->block_bits_length, locator->node_bits_length,
+			locator->function_bits_length,
+			locator->argument_bits_length,
+			CHECK_FLAG(locator->flags, SRV6_LOCATOR_USID)
+				? ZEBRA_SRV6_SID_FORMAT_TYPE_COMPRESSED_USID
+				: ZEBRA_SRV6_SID_FORMAT_TYPE_UNCOMPRESSED);
+		if (!format_check) {
+			zlog_warn("Unsupported SID format (block-len=%u node-len=%u func-len=%u usid=%s) specified for locator %s",
+				  locator->block_bits_length,
+				  locator->node_bits_length,
+				  locator->function_bits_length,
+				  (CHECK_FLAG(locator->flags, SRV6_LOCATOR_USID))
+					  ? "yes"
+					  : "no",
+				  locator->name);
+			return;
+		}
 	}
 
 	/* the locator settings match. and a format has been selected. turn up the status */
@@ -479,6 +483,25 @@ static struct zebra_srv6_sid_format *create_srv6_sid_format_uncompressed(void)
 	return format;
 }
 
+/*
+ * Helper function to create the SRv6 legacy format.
+ */
+static struct zebra_srv6_sid_format *create_srv6_sid_format_legacy(void)
+{
+	struct zebra_srv6_sid_format *format = NULL;
+
+	format = zebra_srv6_sid_format_alloc(ZEBRA_SRV6_SID_FORMAT_LEGACY_NAME);
+
+	format->type = ZEBRA_SRV6_SID_FORMAT_TYPE_LEGACY;
+
+	/* Define block/node/function length remain to 0
+	 * because allocation is handled by the locator definition
+	 * level
+	 */
+
+	return format;
+}
+
 /* --- Zebra SRv6 SID function management functions ---------------------------- */
 
 uint32_t *zebra_srv6_sid_func_alloc(uint32_t func)
@@ -565,7 +588,7 @@ zebra_srv6_sid_block_alloc(struct zebra_srv6_sid_format *format,
 			delete_zebra_srv6_sid_func;
 		block->u.uncompressed.first_available_func =
 			ZEBRA_SRV6_SID_FORMAT_UNCOMPRESSED_FUNC_UNRESERVED_MIN;
-	} else {
+	} else if (format->type != ZEBRA_SRV6_SID_FORMAT_TYPE_LEGACY) {
 		/* We should never arrive here */
 		assert(0);
 	}
@@ -596,7 +619,7 @@ void zebra_srv6_sid_block_free(struct zebra_srv6_sid_block *block)
 		   ZEBRA_SRV6_SID_FORMAT_TYPE_UNCOMPRESSED) {
 		list_delete(&block->u.uncompressed.func_allocated);
 		list_delete(&block->u.uncompressed.func_released);
-	} else {
+	} else if (block->sid_format->type != ZEBRA_SRV6_SID_FORMAT_TYPE_LEGACY) {
 		/* We should never arrive here */
 		assert(0);
 	}
@@ -793,6 +816,7 @@ struct zebra_srv6 *zebra_srv6_get_default(void)
 	static bool first_execution = true;
 	struct zebra_srv6_sid_format *format_usidf3216;
 	struct zebra_srv6_sid_format *format_uncompressed;
+	struct zebra_srv6_sid_format *format_legacy;
 
 	if (first_execution) {
 		first_execution = false;
@@ -809,6 +833,10 @@ struct zebra_srv6 *zebra_srv6_get_default(void)
 		/* Create SID format `uncompressed` */
 		format_uncompressed = create_srv6_sid_format_uncompressed();
 		zebra_srv6_sid_format_register(format_uncompressed);
+
+		/* Create SID format `legacy` */
+		format_legacy = create_srv6_sid_format_legacy();
+		zebra_srv6_sid_format_register(format_legacy);
 
 		/* Init list to store SRv6 SIDs */
 		srv6.sids = list_new();
