@@ -79,6 +79,26 @@ DEFINE_HOOK(srv6_manager_get_locator,
 	     const char *locator_name),
 	    (locator, client, locator_name));
 
+static struct zebra_srv6_sid_format *zebra_srv6_sid_format_lookup_by_params(
+	const uint8_t block_len, const uint8_t node_len,
+	const uint8_t function_len, const uint8_t argument_len,
+	const enum zebra_srv6_sid_format_type type)
+{
+	struct zebra_srv6 *srv6 = zebra_srv6_get_default();
+	struct zebra_srv6_sid_format *format;
+	struct listnode *node;
+
+	for (ALL_LIST_ELEMENTS_RO(srv6->sid_formats, node, format)) {
+		if (format->block_len == block_len &&
+		    format->node_len == node_len &&
+		    format->function_len == function_len &&
+		    format->argument_len == argument_len && format->type == type)
+			return format;
+	}
+
+	return NULL;
+}
+
 /* define wrappers to be called in zapi_msg.c (as hooks must be called in
  * source file where they were defined)
  */
@@ -246,6 +266,7 @@ void zebra_srv6_locator_format_set(struct srv6_locator *locator,
 	struct prefix_ipv6 block_pfx_new;
 	struct listnode *node, *nnode;
 	struct zebra_srv6_sid_ctx *ctx;
+	struct zebra_srv6_sid_format *format_check;
 
 	if (!locator)
 		return;
@@ -289,19 +310,36 @@ void zebra_srv6_locator_format_set(struct srv6_locator *locator,
 	}
 	locator->sid_block = NULL;
 
-	if (!format)
-		return;
-
 	/* Update the SID format of the locator */
 	locator->sid_format = format;
-	locator->block_bits_length = format->block_len;
-	locator->node_bits_length = format->node_len;
-	locator->function_bits_length = format->function_len;
-	locator->argument_bits_length = format->argument_len;
-	if (format->type == ZEBRA_SRV6_SID_FORMAT_TYPE_COMPRESSED_USID)
-		SET_FLAG(locator->flags, SRV6_LOCATOR_USID);
-	else
-		UNSET_FLAG(locator->flags, SRV6_LOCATOR_USID);
+
+	if (!format) {
+		/* notify locator is no longer valid */
+		zebra_notify_srv6_locator_delete(locator);
+		locator->status_up = false;
+		return;
+	}
+
+	/* behavior and format command should be independent and used together in the case of usid config */
+	format_check = zebra_srv6_sid_format_lookup_by_params(
+		locator->block_bits_length, locator->node_bits_length,
+		locator->function_bits_length, locator->argument_bits_length,
+		CHECK_FLAG(locator->flags, SRV6_LOCATOR_USID)
+			? ZEBRA_SRV6_SID_FORMAT_TYPE_COMPRESSED_USID
+			: ZEBRA_SRV6_SID_FORMAT_TYPE_UNCOMPRESSED);
+	if (!format_check) {
+		zlog_warn("Unsupported SID format (block-len=%u node-len=%u func-len=%u usid=%s) specified for locator %s",
+			  locator->block_bits_length, locator->node_bits_length,
+			  locator->function_bits_length,
+			  (CHECK_FLAG(locator->flags, SRV6_LOCATOR_USID))
+				  ? "yes"
+				  : "no",
+			  locator->name);
+		return;
+	}
+
+	/* the locator settings match. and a format has been selected. turn up the status */
+	locator->status_up = true;
 
 	block_pfx_new = locator->prefix;
 	block_pfx_new.prefixlen = format->block_len;

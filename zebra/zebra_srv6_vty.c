@@ -316,7 +316,6 @@ DEFUN_NOSH (srv6_locator,
 	locator = zebra_srv6_locator_lookup(argv[1]->arg);
 	if (locator) {
 		VTY_PUSH_CONTEXT(SRV6_LOC_NODE, locator);
-		locator->status_up = true;
 		return CMD_SUCCESS;
 	}
 
@@ -325,7 +324,6 @@ DEFUN_NOSH (srv6_locator,
 		vty_out(vty, "%% Alloc failed\n");
 		return CMD_WARNING_CONFIG_FAILED;
 	}
-	locator->status_up = true;
 
 	VTY_PUSH_CONTEXT(SRV6_LOC_NODE, locator);
 	vty->node = SRV6_LOC_NODE;
@@ -374,26 +372,6 @@ DEFUN (no_srv6_locator,
 	return CMD_SUCCESS;
 }
 
-static struct zebra_srv6_sid_format *zebra_srv6_sid_format_lookup_by_params(
-	const uint8_t block_len, const uint8_t node_len,
-	const uint8_t function_len, const uint8_t argument_len,
-	const enum zebra_srv6_sid_format_type type)
-{
-	struct zebra_srv6 *srv6 = zebra_srv6_get_default();
-	struct zebra_srv6_sid_format *format;
-	struct listnode *node;
-
-	for (ALL_LIST_ELEMENTS_RO(srv6->sid_formats, node, format)) {
-		if (format->block_len == block_len &&
-		    format->node_len == node_len &&
-		    format->function_len == function_len &&
-		    format->argument_len == argument_len && format->type == type)
-			return format;
-	}
-
-	return NULL;
-}
-
 DEFPY (locator_prefix,
        locator_prefix_cmd,
        "prefix X:X::X:X/M$prefix [block-len (16-64)$block_bit_len]  \
@@ -410,7 +388,6 @@ DEFPY (locator_prefix,
 	VTY_DECLVAR_CONTEXT(srv6_locator, locator);
 	struct srv6_locator_chunk *chunk = NULL;
 	struct listnode *node = NULL;
-	struct zebra_srv6_sid_format *format = NULL;
 
 	locator->prefix = *prefix;
 	func_bit_len = func_bit_len ?: ZEBRA_SRV6_FUNCTION_LENGTH;
@@ -489,24 +466,8 @@ DEFPY (locator_prefix,
 		}
 	}
 
-	/* Lookup SID format */
-	format = zebra_srv6_sid_format_lookup_by_params(
-		locator->block_bits_length, locator->node_bits_length,
-		locator->function_bits_length, locator->argument_bits_length,
-		CHECK_FLAG(locator->flags, SRV6_LOCATOR_USID)
-			? ZEBRA_SRV6_SID_FORMAT_TYPE_COMPRESSED_USID
-			: ZEBRA_SRV6_SID_FORMAT_TYPE_UNCOMPRESSED);
-	if (!format)
-		zlog_warn("Unsupported SID format (block-len=%u node-len=%u func-len=%u usid=%s) specified for locator %s",
-			  locator->block_bits_length, locator->node_bits_length,
-			  locator->function_bits_length,
-			  (CHECK_FLAG(locator->flags, SRV6_LOCATOR_USID))
-				  ? "yes"
-				  : "no",
-			  locator->name);
-
 	/* Update the locator */
-	zebra_srv6_locator_format_set(locator, format);
+	zebra_srv6_locator_format_set(locator, locator->sid_format);
 
 	zebra_srv6_locator_add(locator);
 	return CMD_SUCCESS;
@@ -520,7 +481,6 @@ DEFPY (locator_behavior,
        "Specify SRv6 behavior uSID\n")
 {
 	VTY_DECLVAR_CONTEXT(srv6_locator, locator);
-	struct zebra_srv6_sid_format *format = NULL;
 
 	if (no && !CHECK_FLAG(locator->flags, SRV6_LOCATOR_USID))
 		/* SRv6 locator uSID flag already unset, nothing to do */
@@ -536,23 +496,7 @@ DEFPY (locator_behavior,
 	else
 		SET_FLAG(locator->flags, SRV6_LOCATOR_USID);
 
-	/* Lookup the SID format */
-	format = zebra_srv6_sid_format_lookup_by_params(
-		locator->block_bits_length, locator->node_bits_length,
-		locator->function_bits_length, locator->argument_bits_length,
-		CHECK_FLAG(locator->flags, SRV6_LOCATOR_USID)
-			? ZEBRA_SRV6_SID_FORMAT_TYPE_COMPRESSED_USID
-			: ZEBRA_SRV6_SID_FORMAT_TYPE_UNCOMPRESSED);
-	if (!format)
-		zlog_warn("Unsupported SID format (block-len=%u node-len=%u func-len=%u usid=%s) specified for locator %s",
-			  locator->block_bits_length, locator->node_bits_length,
-			  locator->function_bits_length,
-			  (CHECK_FLAG(locator->flags, SRV6_LOCATOR_USID))
-				  ? "yes"
-				  : "no",
-			  locator->name);
-
-	zebra_srv6_locator_format_set(locator, format);
+	zebra_srv6_locator_format_set(locator, locator->sid_format);
 
 	return CMD_SUCCESS;
 }
@@ -1030,6 +974,10 @@ static int zebra_sr_config(struct vty *vty)
 			vty_out(vty, "\n");
 			if (CHECK_FLAG(locator->flags, SRV6_LOCATOR_USID))
 				vty_out(vty, "    behavior usid\n");
+			if (locator->sid_format) {
+				format = locator->sid_format;
+				vty_out(vty, "    format %s\n", format->name);
+			}
 			vty_out(vty, "   exit\n");
 			vty_out(vty, "   !\n");
 		}
