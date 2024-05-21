@@ -15,6 +15,7 @@
 #include "prefix.h"
 #include <pthread.h>
 #include <plist.h>
+#include "srv6.h"
 
 #define SRV6_SID_FORMAT_NAME_SIZE 512
 
@@ -110,13 +111,14 @@ struct zebra_srv6_sid_block {
 /* SID format type */
 enum zebra_srv6_sid_format_type {
 	/* by default, no format is selected, locator will be disabled */
-	ZEBRA_SRV6_SID_FORMAT_TYPE_UNSPEC = 0,
+	ZEBRA_SRV6_SID_FORMAT_TYPE_UNSPEC = SRV6_FORMAT_TYPE_UNSPEC,
 	/* SRv6 SID uncompressed format */
-	ZEBRA_SRV6_SID_FORMAT_TYPE_UNCOMPRESSED = 1,
+	ZEBRA_SRV6_SID_FORMAT_TYPE_UNCOMPRESSED = SRV6_FORMAT_TYPE_UNCOMPRESSED,
 	/* SRv6 SID compressed uSID format */
-	ZEBRA_SRV6_SID_FORMAT_TYPE_COMPRESSED_USID = 2,
+	ZEBRA_SRV6_SID_FORMAT_TYPE_COMPRESSED_USID =
+		SRV6_FORMAT_TYPE_COMPRESSED_USID,
 	/* SRv6 SID legact format (uncompressed) */
-	ZEBRA_SRV6_SID_FORMAT_TYPE_LEGACY = 3,
+	ZEBRA_SRV6_SID_FORMAT_TYPE_LEGACY = SRV6_FORMAT_TYPE_LEGACY,
 };
 
 /* SRv6 SID format */

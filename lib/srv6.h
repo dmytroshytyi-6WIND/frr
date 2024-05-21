@@ -77,6 +77,18 @@ enum seg6local_flavor_op {
 	ZEBRA_SEG6_LOCAL_FLV_OP_NEXT_CSID    = 4,
 };
 
+/* SID format type */
+enum srv6_format_type {
+	/* by default, no format is selected, locator will be disabled */
+	SRV6_FORMAT_TYPE_UNSPEC = 0,
+	/* SRv6 SID uncompressed format */
+	SRV6_FORMAT_TYPE_UNCOMPRESSED = 1,
+	/* SRv6 SID compressed uSID format */
+	SRV6_FORMAT_TYPE_COMPRESSED_USID = 2,
+	/* SRv6 legacy format */
+	SRV6_FORMAT_TYPE_LEGACY = 3,
+};
+
 #define SRV6_SEG_STRLEN 1024
 
 struct seg6_segs {
