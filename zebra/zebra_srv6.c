@@ -317,8 +317,10 @@ void zebra_srv6_locator_format_set(struct srv6_locator *locator,
 		/* notify locator is no longer valid */
 		zebra_notify_srv6_locator_delete(locator);
 		locator->status_up = false;
+		locator->format = SRV6_FORMAT_TYPE_UNSPEC;
 		return;
 	}
+	locator->format = format->type;
 
 	/* behavior and format command should be independent and used together in the case of usid config */
 	if (format->type != ZEBRA_SRV6_SID_FORMAT_TYPE_LEGACY) {

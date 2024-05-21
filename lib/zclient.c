@@ -1130,6 +1130,7 @@ int zapi_srv6_locator_encode(struct stream *s, const struct srv6_locator *l)
 	stream_putc(s, l->function_bits_length);
 	stream_putc(s, l->argument_bits_length);
 	stream_putc(s, l->flags);
+	stream_putc(s, l->format);
 	return 0;
 }
 
@@ -1150,6 +1151,7 @@ int zapi_srv6_locator_decode(struct stream *s, struct srv6_locator *l)
 	STREAM_GETC(s, l->function_bits_length);
 	STREAM_GETC(s, l->argument_bits_length);
 	STREAM_GETC(s, l->flags);
+	STREAM_GETC(s, l->format);
 	return 0;
 
 stream_failure:

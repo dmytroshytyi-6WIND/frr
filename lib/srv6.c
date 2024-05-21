@@ -153,6 +153,7 @@ void srv6_locator_copy(struct srv6_locator *copy,
 	copy->current = locator->current;
 	copy->status_up = locator->status_up;
 	copy->flags = locator->flags;
+	copy->format = locator->format;
 }
 
 void srv6_locator_free(struct srv6_locator *locator)

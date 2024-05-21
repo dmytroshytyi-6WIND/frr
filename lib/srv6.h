@@ -139,6 +139,9 @@ struct srv6_locator {
 	uint8_t flags;
 #define SRV6_LOCATOR_USID (1 << 0) /* The SRv6 Locator is a uSID Locator */
 
+	/* derived from enum srv6_format_type */
+	uint8_t format;
+
 	/* Pointer to the SID format. */
 	void *sid_format;
 
