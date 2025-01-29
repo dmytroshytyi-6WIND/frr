@@ -447,9 +447,9 @@ static void vzlog_notls(const struct xref_logmsg *xref, int prio,
 	}
 	rcu_read_unlock();
 
-	if (msg->args)
+	if (msg && msg->args)
 		va_end(msg->args);
-	if (msg->text && msg->text != stackbuf)
+	if (msg && msg->text && msg->text != stackbuf)
 		XFREE(MTYPE_LOG_MESSAGE, msg->text);
 }
 
