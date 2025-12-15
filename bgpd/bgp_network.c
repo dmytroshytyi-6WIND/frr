@@ -515,7 +515,6 @@ static void bgp_accept(struct event *event)
 			incoming = dynamic_peer->connection;
 			/* Dynamic neighbor has been created, let it proceed */
 			incoming->fd = bgp_sock;
-			incoming->dir = CONNECTION_INCOMING;
 
 			incoming->su_local = sockunion_getsockname(incoming->fd);
 			incoming->su_remote = sockunion_dup(&su);
@@ -646,8 +645,8 @@ static void bgp_accept(struct event *event)
 		peer_delete(peer->doppelganger);
 	}
 
-	doppelganger = peer_create(&su, peer->conf_if, bgp, peer->local_as, peer->as, peer->as_type,
-				   NULL, false, NULL);
+	doppelganger = peer_create(&su, peer->conf_if, bgp, peer->local_as, peer->as,
+				   peer->as_type, NULL, false, NULL, CONNECTION_INCOMING);
 
 	incoming = doppelganger->connection;
 
@@ -668,7 +667,6 @@ static void bgp_accept(struct event *event)
 	peer->doppelganger = doppelganger;
 
 	incoming->fd = bgp_sock;
-	incoming->dir = CONNECTION_INCOMING;
 	incoming->su_local = sockunion_getsockname(incoming->fd);
 	incoming->su_remote = sockunion_dup(&su);
 
