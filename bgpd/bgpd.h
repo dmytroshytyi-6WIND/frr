@@ -1819,7 +1819,6 @@ struct peer {
 /* #define PEER_STATUS_ACCEPT_PEER removed - use bgp_peer_get_connection_direction() */
 #define PEER_STATUS_PREFIX_OVERFLOW   (1U << 1) /* prefix-overflow */
 #define PEER_STATUS_CAPABILITY_OPEN   (1U << 2) /* capability open send */
-#define PEER_STATUS_HAVE_ACCEPT       (1U << 3) /* accept peer's parent */
 #define PEER_STATUS_GROUP             (1U << 4) /* peer-group conf */
 #define PEER_STATUS_NSF_MODE          (1U << 5) /* NSF aware peer */
 #define PEER_STATUS_NSF_WAIT          (1U << 6) /* wait comeback peer */
