@@ -1224,7 +1224,7 @@ void bgp_peer_connection_free(struct peer_connection **connection)
 	connection = NULL;
 }
 
-const char *bgp_peer_get_connection_direction(struct peer_connection *connection)
+const char *bgp_peer_get_connection_direction_string(struct peer_connection *connection)
 {
 	switch (connection->dir) {
 	case UNKNOWN:
@@ -2798,7 +2798,7 @@ int peer_delete(struct peer *peer)
 		zlog_debug("%s: peer %pBP", __func__, peer);
 
 	bgp = peer->bgp;
-	accept_peer = CHECK_FLAG(peer->sflags, PEER_STATUS_ACCEPT_PEER);
+	accept_peer = (bgp_peer_get_connection_direction(peer->connection) == CONNECTION_INCOMING);
 
 	bgp_soft_reconfig_table_task_cancel(bgp, NULL, peer);
 
@@ -2873,7 +2873,6 @@ int peer_delete(struct peer *peer)
 		peer->doppelganger = NULL;
 	}
 
-	UNSET_FLAG(peer->sflags, PEER_STATUS_ACCEPT_PEER);
 	bgp_fsm_change_status(peer->connection, Deleted);
 
 	/* Remove from NHT */
@@ -4603,19 +4602,18 @@ struct peer *peer_lookup_by_conf_if(struct bgp *bgp, const char *conf_if)
 
 	if (bgp != NULL) {
 		for (ALL_LIST_ELEMENTS(bgp->peer, node, nnode, peer))
-			if (peer->conf_if && !strcmp(peer->conf_if, conf_if)
-			    && !CHECK_FLAG(peer->sflags,
-					   PEER_STATUS_ACCEPT_PEER))
+			if (peer->conf_if && !strcmp(peer->conf_if, conf_if) &&
+			    bgp_peer_get_connection_direction(peer->connection) !=
+				    CONNECTION_INCOMING)
 				return peer;
 	} else if (bm->bgp != NULL) {
 		struct listnode *bgpnode, *nbgpnode;
 
 		for (ALL_LIST_ELEMENTS(bm->bgp, bgpnode, nbgpnode, bgp))
 			for (ALL_LIST_ELEMENTS(bgp->peer, node, nnode, peer))
-				if (peer->conf_if
-				    && !strcmp(peer->conf_if, conf_if)
-				    && !CHECK_FLAG(peer->sflags,
-						   PEER_STATUS_ACCEPT_PEER))
+				if (peer->conf_if && !strcmp(peer->conf_if, conf_if) &&
+				    bgp_peer_get_connection_direction(peer->connection) !=
+					    CONNECTION_INCOMING)
 					return peer;
 	}
 	return NULL;
@@ -4631,19 +4629,18 @@ struct peer *peer_lookup_by_hostname(struct bgp *bgp, const char *hostname)
 
 	if (bgp != NULL) {
 		for (ALL_LIST_ELEMENTS(bgp->peer, node, nnode, peer))
-			if (peer->hostname && !strcmp(peer->hostname, hostname)
-			    && !CHECK_FLAG(peer->sflags,
-					   PEER_STATUS_ACCEPT_PEER))
+			if (peer->hostname && !strcmp(peer->hostname, hostname) &&
+			    bgp_peer_get_connection_direction(peer->connection) !=
+				    CONNECTION_INCOMING)
 				return peer;
 	} else if (bm->bgp != NULL) {
 		struct listnode *bgpnode, *nbgpnode;
 
 		for (ALL_LIST_ELEMENTS(bm->bgp, bgpnode, nbgpnode, bgp))
 			for (ALL_LIST_ELEMENTS(bgp->peer, node, nnode, peer))
-				if (peer->hostname
-				    && !strcmp(peer->hostname, hostname)
-				    && !CHECK_FLAG(peer->sflags,
-						   PEER_STATUS_ACCEPT_PEER))
+				if (peer->hostname && !strcmp(peer->hostname, hostname) &&
+				    bgp_peer_get_connection_direction(peer->connection) !=
+					    CONNECTION_INCOMING)
 					return peer;
 	}
 	return NULL;
